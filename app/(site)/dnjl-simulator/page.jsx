@@ -44,11 +44,13 @@ export default function SimulatorPage() {
   // ── chart state ──────────────────────────────────────────────
   const [chartLines,     setChartLines]     = useState([]);
   const [chartTooltip,   setChartTooltip]   = useState(null);
+  const [actualPoints,   setActualPoints]   = useState([]);
   const chartRef = useRef(null);
 
   const abortRef  = useRef(false);
   const failedRef = useRef(new Set());
   const logEndRef = useRef(null);
+  const simStartTime = performance.now();
 
   // ── build chart data when tab opens or config changes ────────
   useEffect(() => {
@@ -294,11 +296,12 @@ export default function SimulatorPage() {
 
     const partial = failedRef.current.size > 0;
     addLog(
-      `${partial ? "PARTIAL" : "HOÀN THÀNH"}: ${totalMatches} kết quả / ${totalComparisons} so sánh / ${totalBlocks} blocks`,
+      `${partial ? " PARTIAL" : " HOÀN THÀNH"}: ${totalMatches} kết quả / ${totalComparisons} so sánh / ${totalBlocks} blocks`,
       partial ? "#e3a70fff" : "#00ff5eff",
     );
-    addLog(`    Network time: ${Math.round(totalNetMs)}ms  (${totalBlocks} packets × ${latencyMs}ms)`, "#e07638ff");
-    setRunning(false);
+    addLog(`    Network time: ${Math.round(totalNetMs)}ms  (${totalBlocks} packets × ${latencyMs}ms)`, "#c3652eff");
+    const actualMs = Math.round(performance.now() - simStartTime);
+    setActualPoints(prev => [...prev, { blockSize, latencyMs, actualMs }]);
     setDone(true);
   }
 
@@ -626,6 +629,8 @@ export default function SimulatorPage() {
             customers={customers.length}
             orders={orders.length}
             numNodes={numNodes}
+            actualPoints={actualPoints}
+            onClear={() => setActualPoints([])}
           />
         </div>
       )}
@@ -662,99 +667,191 @@ export default function SimulatorPage() {
 // ══════════════════════════════════════════════════════════════
 const LINE_COLORS = ["#b38a6a", "#c59d5f", "#8c6a4f", "#9c8679", "#a47c4b", "#6b4e39"];
 
-function ChartPanel({ lines, customers, orders, numNodes }) {
+// ── Table cell styles (dùng trong ChartPanel) ───────────────
+const th = { padding: "6px 12px", textAlign: "right", fontSize: 11, letterSpacing: 1, fontWeight: 700, borderRight: "1px solid #3a2a1a" };
+const td = { padding: "5px 12px", textAlign: "right", fontSize: 11, color: "var(--lz-text-sub)", borderRight: "1px solid var(--lz-border)" };
+
+function ChartPanel({ lines, customers, orders, numNodes, actualPoints = [], onClear }) {
   const canvasRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
 
   useEffect(() => {
-    if (!canvasRef.current || lines.length === 0) return;
+    if (!canvasRef.current) return;
     drawChart();
-  }, [lines]);
+  }, [lines, actualPoints]);
 
   function drawChart() {
     const canvas = canvasRef.current;
     const ctx    = canvas.getContext("2d");
-    const W = canvas.width  = canvas.offsetWidth;
-    const H = canvas.height = canvas.offsetHeight;
+    const W = canvas.width  = canvas.offsetWidth  * window.devicePixelRatio;
+    const H = canvas.height = canvas.offsetHeight * window.devicePixelRatio;
+    ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
+    const RW = canvas.offsetWidth;
+    const RH = canvas.offsetHeight;
 
-    const PAD = { top: 20, right: 20, bottom: 36, left: 70 };
-    const cW = W - PAD.left - PAD.right;
-    const cH = H - PAD.top  - PAD.bottom;
+    const PAD = { top: 24, right: 24, bottom: 38, left: 72 };
+    const cW  = RW - PAD.left - PAD.right;
+    const cH  = RH - PAD.top  - PAD.bottom;
 
-    ctx.clearRect(0, 0, W, H);
-
-    // Background
+    ctx.clearRect(0, 0, RW, RH);
     ctx.fillStyle = "#f3ede6";
-    ctx.fillRect(0, 0, W, H);
+    ctx.fillRect(0, 0, RW, RH);
 
-    if (lines.length === 0) return;
+    if (!lines.length) return;
 
-    const allMs = lines.flatMap(l => l.points.map(p => p.ms));
-    const maxMs = Math.max(...allMs) * 1.08;
-    const minMs = 0;
-    const lats  = lines[0].points.map(p => p.lat);
+    const allMs  = lines.flatMap(l => l.points.map(p => p.ms));
+    const actMs  = actualPoints.map(p => p.actualMs);
+    const maxMs  = Math.max(...allMs, ...actMs, 1) * 1.1;
+    const lats   = lines[0].points.map(p => p.lat);
 
-    // Grid lines
-    const yTicks = 5;
-    ctx.strokeStyle = "#e8ddd4";
-    ctx.lineWidth   = 1;
-    ctx.setLineDash([3, 4]);
-    for (let t = 0; t <= yTicks; t++) {
-      const y = PAD.top + cH - (t / yTicks) * cH;
+    const toX = (i)  => PAD.left + (i / (lats.length - 1)) * cW;
+    const toY = (ms) => PAD.top  + cH - (ms / maxMs) * cH;
+
+    // Grid
+    ctx.setLineDash([3, 5]);
+    ctx.lineWidth = 1;
+    for (let t = 0; t <= 5; t++) {
+      const y   = PAD.top + cH * (1 - t / 5);
+      const val = Math.round((t / 5) * maxMs);
+      ctx.strokeStyle = "#e8ddd4";
       ctx.beginPath(); ctx.moveTo(PAD.left, y); ctx.lineTo(PAD.left + cW, y); ctx.stroke();
-      const val = Math.round((t / yTicks) * maxMs);
-      ctx.fillStyle = "#9c8679"; ctx.font = "10px 'JetBrains Mono', monospace";
-      ctx.textAlign = "right"; ctx.fillText(val >= 1000 ? (val/1000).toFixed(1)+"k" : val, PAD.left - 6, y + 4);
+      ctx.fillStyle = "#9c8679";
+      ctx.font = "10px 'JetBrains Mono',monospace";
+      ctx.textAlign = "right";
+      ctx.fillText(val >= 1000 ? (val/1000).toFixed(1)+"s" : val+"ms", PAD.left - 6, y + 4);
     }
-    ctx.setLineDash([]);
-
-    // X axis ticks
     lats.forEach((lat, i) => {
-      const x = PAD.left + (i / (lats.length - 1)) * cW;
-      ctx.strokeStyle = "#e8ddd4"; ctx.lineWidth = 1;
+      const x = toX(i);
+      ctx.strokeStyle = "#e8ddd4";
       ctx.beginPath(); ctx.moveTo(x, PAD.top); ctx.lineTo(x, PAD.top + cH); ctx.stroke();
-      ctx.fillStyle = "#9c8679"; ctx.font = "9px 'JetBrains Mono', monospace";
-      ctx.textAlign = "center"; ctx.fillText(lat + "ms", x, PAD.top + cH + 16);
+      ctx.fillStyle = "#9c8679";
+      ctx.font = "9px 'JetBrains Mono',monospace";
+      ctx.textAlign = "center";
+      ctx.fillText(lat+"ms", x, PAD.top + cH + 16);
     });
+    ctx.setLineDash([]);
 
     // Axes
     ctx.strokeStyle = "#c8b8a8"; ctx.lineWidth = 1.5;
     ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top); ctx.lineTo(PAD.left, PAD.top + cH); ctx.stroke();
     ctx.beginPath(); ctx.moveTo(PAD.left, PAD.top + cH); ctx.lineTo(PAD.left + cW, PAD.top + cH); ctx.stroke();
 
-    // Lines
+    // Theory lines (thin, slightly muted)
     lines.forEach((line, li) => {
       const color = LINE_COLORS[li % LINE_COLORS.length];
-      ctx.strokeStyle = color; ctx.lineWidth = 2.2;
+      ctx.strokeStyle = color + "aa";
+      ctx.lineWidth   = 1.6;
+      ctx.setLineDash([4, 3]);
       ctx.beginPath();
       line.points.forEach((pt, i) => {
-        const x = PAD.left + (i / (line.points.length - 1)) * cW;
-        const y = PAD.top  + cH - ((pt.ms - minMs) / (maxMs - minMs)) * cH;
+        const x = toX(i), y = toY(pt.ms);
         i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
       });
       ctx.stroke();
-
-      // Dots
-      line.points.forEach((pt, i) => {
-        const x = PAD.left + (i / (line.points.length - 1)) * cW;
-        const y = PAD.top  + cH - ((pt.ms - minMs) / (maxMs - minMs)) * cH;
-        ctx.fillStyle = color; ctx.beginPath(); ctx.arc(x, y, 3.5, 0, Math.PI * 2); ctx.fill();
-        ctx.fillStyle = "#fff"; ctx.beginPath(); ctx.arc(x, y, 1.5, 0, Math.PI * 2); ctx.fill();
-      });
+      ctx.setLineDash([]);
     });
+
+    // Actual measurement points — plotted as bold filled circles with halos
+    if (actualPoints.length > 0) {
+      actualPoints.forEach((ap, apIdx) => {
+        const latIdx = lats.indexOf(ap.latencyMs);
+        // find closest lat if exact not in range
+        const closestIdx = latIdx >= 0 ? latIdx :
+          lats.reduce((best, l, i) => Math.abs(l - ap.latencyMs) < Math.abs(lats[best] - ap.latencyMs) ? i : best, 0);
+        const x = toX(closestIdx);
+        const y = toY(ap.actualMs);
+
+        // find theory line for this blockSize
+        const lineIdx = lines.findIndex(l => l.blockSize === ap.blockSize);
+        const color   = lineIdx >= 0 ? LINE_COLORS[lineIdx % LINE_COLORS.length] : "#c0392b";
+
+        // glow halo
+        ctx.beginPath();
+        ctx.arc(x, y, 10, 0, Math.PI * 2);
+        ctx.fillStyle = color + "33";
+        ctx.fill();
+
+        // outer ring
+        ctx.beginPath();
+        ctx.arc(x, y, 7, 0, Math.PI * 2);
+        ctx.strokeStyle = color;
+        ctx.lineWidth = 2;
+        ctx.stroke();
+
+        // filled dot
+        ctx.beginPath();
+        ctx.arc(x, y, 5, 0, Math.PI * 2);
+        ctx.fillStyle = color;
+        ctx.fill();
+
+        // white center
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = "#fff";
+        ctx.fill();
+
+        // label: "RUN n"
+        ctx.fillStyle = color;
+        ctx.font = "bold 10px 'Inter',sans-serif";
+        ctx.textAlign = "center";
+        ctx.fillText(`RUN${apIdx + 1}`, x, y - 12);
+
+        // value label
+        const label = ap.actualMs >= 1000 ? (ap.actualMs/1000).toFixed(1)+"s" : ap.actualMs+"ms";
+        ctx.fillStyle = "#2c1f14";
+        ctx.font = "9px 'JetBrains Mono',monospace";
+        ctx.fillText(label, x, y + 18);
+      });
+
+      // Vertical dashed line connecting actual points if multiple
+      if (actualPoints.length > 1) {
+        actualPoints.slice(0, -1).forEach((ap, i) => {
+          const ap2 = actualPoints[i + 1];
+          const li1 = lats.reduce((b, l, j) => Math.abs(l - ap.latencyMs)  < Math.abs(lats[b] - ap.latencyMs)  ? j : b, 0);
+          const li2 = lats.reduce((b, l, j) => Math.abs(l - ap2.latencyMs) < Math.abs(lats[b] - ap2.latencyMs) ? j : b, 0);
+          ctx.setLineDash([3, 4]);
+          ctx.strokeStyle = "#c0392b88";
+          ctx.lineWidth = 1.5;
+          ctx.beginPath();
+          ctx.moveTo(toX(li1), toY(ap.actualMs));
+          ctx.lineTo(toX(li2), toY(ap2.actualMs));
+          ctx.stroke();
+          ctx.setLineDash([]);
+        });
+      }
+    }
+
+    // Axis labels
+    ctx.save();
+    ctx.translate(14, PAD.top + cH / 2);
+    ctx.rotate(-Math.PI / 2);
+    ctx.fillStyle = "#9c8679";
+    ctx.font = "10px 'Inter',sans-serif";
+    ctx.textAlign = "center";
+    ctx.fillText("EXECUTION TIME", 0, 0);
+    ctx.restore();
   }
 
   function handleMouseMove(e) {
-    const rect   = canvasRef.current.getBoundingClientRect();
-    const mx     = e.clientX - rect.left;
-    const W      = rect.width;
-    const PAD_L  = 70;
-    const cW     = W - PAD_L - 20;
+    const rect = canvasRef.current.getBoundingClientRect();
+    const mx   = e.clientX - rect.left;
+    const W    = rect.width;
+    const PAD_L = 72, cW = W - PAD_L - 24;
     if (!lines.length) return;
-    const lats   = lines[0].points.map(p => p.lat);
-    const idx    = Math.round(((mx - PAD_L) / cW) * (lats.length - 1));
+    const lats  = lines[0].points.map(p => p.lat);
+    const idx   = Math.round(((mx - PAD_L) / cW) * (lats.length - 1));
     if (idx < 0 || idx >= lats.length) { setTooltip(null); return; }
-    setTooltip({ x: mx, y: e.clientY - rect.top, lat: lats[idx], points: lines.map(l => ({ bs: l.blockSize, ms: l.points[idx].ms })) });
+    const lat = lats[idx];
+    const actHere = actualPoints.filter(ap => {
+      const cl = lats.reduce((b, l, j) => Math.abs(l - ap.latencyMs) < Math.abs(lats[b] - ap.latencyMs) ? j : b, 0);
+      return cl === idx;
+    });
+    setTooltip({
+      x: mx, y: e.clientY - rect.top,
+      lat,
+      theory: lines.map(l => ({ bs: l.blockSize, ms: l.points[idx].ms })),
+      actual: actHere,
+    });
   }
 
   return (
@@ -763,39 +860,94 @@ function ChartPanel({ lines, customers, orders, numNodes }) {
         <div>
           <div className="chart-header__title">Execution Time vs Network Latency</div>
           <div className="chart-header__sub">
-            Dataset: {formatNum(customers)} customers × {formatNum(orders)} orders · {numNodes} nodes · Mỗi đường = 1 Block Size
+            {customers.toLocaleString()} customers × {orders.toLocaleString()} orders · {numNodes} nodes ·
+            <span style={{ color: "var(--lz-mocha)", marginLeft: 6 }}>- - -</span> lý thuyết ·
+            <span style={{ color: "var(--lz-mocha)", marginLeft: 6 }}>●</span> thực tế (sau khi chạy simulation)
           </div>
         </div>
-        <div className="chart-legend">
-          {BLOCK_SIZE_OPTIONS.map((bs, i) => (
-            <div key={bs} className="chart-legend-item">
-              <span className="chart-legend-dot" style={{ background: LINE_COLORS[i % LINE_COLORS.length] }} />
-              B={bs}
-            </div>
-          ))}
+        <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+          <div className="chart-legend">
+            {BLOCK_SIZE_OPTIONS.map((bs, i) => (
+              <div key={bs} className="chart-legend-item">
+                <span className="chart-legend-dot" style={{ background: LINE_COLORS[i % LINE_COLORS.length] }} />
+                B={bs}
+              </div>
+            ))}
+          </div>
+          {actualPoints.length > 0 && (
+            <button onClick={onClear} style={{
+              fontSize: 10, padding: "3px 10px", borderRadius: 4,
+              border: "1px solid var(--lz-border-dark)", background: "var(--lz-bg-card)",
+              color: "var(--lz-text-sub)", cursor: "pointer", fontFamily: "var(--lz-sans)",
+            }}>✕ Xoá điểm thực tế</button>
+          )}
         </div>
       </div>
 
-      <div className="chart-wrap" onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
-        <canvas ref={canvasRef} className="chart-canvas" style={{ width: "100%", height: "100%" }} />
+      {actualPoints.length === 0 && (
+        <div style={{
+          background: "var(--lz-warn-bg)", border: "1px solid #f0d070",
+          borderRadius: "var(--lz-radius)", padding: "8px 14px",
+          fontSize: 12, color: "var(--lz-warn)", marginBottom: 12,
+          fontFamily: "var(--lz-mono)",
+        }}>
+          ⓘ Chạy simulation ít nhất 1 lần để thấy điểm thực tế (●) trên đồ thị.
+          Thay đổi Block Size hoặc Latency rồi chạy lại để so sánh.
+        </div>
+      )}
 
+      {actualPoints.length > 0 && (
+        <div style={{ display: "flex", gap: 8, marginBottom: 12, flexWrap: "wrap" }}>
+          {actualPoints.map((ap, i) => (
+            <div key={i} style={{
+              background: "var(--lz-bg-card)", border: `2px solid ${LINE_COLORS[lines.findIndex(l => l.blockSize === ap.blockSize) % LINE_COLORS.length] || "#b38a6a"}`,
+              borderRadius: 8, padding: "6px 12px", fontSize: 11,
+              fontFamily: "var(--lz-mono)",
+            }}>
+              <span style={{ color: "var(--lz-text-muted)" }}>RUN{i+1} · </span>
+              <strong style={{ color: "var(--lz-mocha)" }}>B={ap.blockSize}</strong>
+              <span style={{ color: "var(--lz-text-muted)" }}> · lat={ap.latencyMs}ms · </span>
+              <strong style={{ color: "#3a7c52" }}>{ap.actualMs}ms</strong>
+              <span style={{ color: "var(--lz-text-muted)", marginLeft: 6, fontSize: 10 }}>
+                (lý thuyết: {calcExecTime(customers, orders, ap.blockSize, ap.latencyMs, numNodes)}ms)
+              </span>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div className="chart-wrap" style={{ height: 300 }}
+        onMouseMove={handleMouseMove} onMouseLeave={() => setTooltip(null)}>
+        <canvas ref={canvasRef} className="chart-canvas"
+          style={{ width: "100%", height: "100%", display: "block" }} />
         {tooltip && (
-          <div className="chart-tooltip" style={{ left: tooltip.x + 12, top: Math.max(8, tooltip.y - 40) }}>
+          <div className="chart-tooltip" style={{ left: Math.min(tooltip.x + 14, 500), top: Math.max(8, tooltip.y - 50) }}>
             <div style={{ color: "var(--lz-gold)", marginBottom: 4, fontWeight: 700 }}>Latency: {tooltip.lat}ms</div>
-            {tooltip.points.map((pt, i) => (
+            <div style={{ color: "var(--lz-text-muted)", fontSize: 10, marginBottom: 4 }}>— Lý thuyết —</div>
+            {tooltip.theory.map((pt, i) => (
               <div key={i} style={{ color: LINE_COLORS[i % LINE_COLORS.length] }}>
                 B={pt.bs}: {pt.ms >= 1000 ? (pt.ms/1000).toFixed(1)+"s" : pt.ms+"ms"}
               </div>
             ))}
+            {tooltip.actual.length > 0 && (
+              <>
+                <div style={{ color: "var(--lz-text-muted)", fontSize: 10, marginTop: 4, marginBottom: 2 }}>● Thực tế —</div>
+                {tooltip.actual.map((ap, i) => (
+                  <div key={i} style={{ color: "#3a7c52", fontWeight: 700 }}>
+                    B={ap.blockSize}: {ap.actualMs}ms
+                  </div>
+                ))}
+              </>
+            )}
           </div>
         )}
       </div>
 
       <div className="chart-xlabel">Network Latency per Packet (ms)</div>
 
-      {/* Insight table */}
+      {/* Data table */}
       <div style={{ marginTop: 20, overflowX: "auto" }}>
-        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--lz-mono)", fontSize: 12 }}>
+        <table style={{ width: "100%", borderCollapse: "collapse", fontFamily: "var(--lz-mono)", fontSize: 11 }}>
           <thead>
             <tr style={{ background: "var(--lz-bg-dark)", color: "var(--lz-taupe)" }}>
               <th style={th}>Block Size</th>
@@ -805,25 +957,36 @@ function ChartPanel({ lines, customers, orders, numNodes }) {
             </tr>
           </thead>
           <tbody>
-            {lines.map((line, li) => (
-              <tr key={li} style={{ background: li % 2 === 0 ? "var(--lz-bg-panel)" : "var(--lz-bg-card)" }}>
-                <td style={{ ...td, color: LINE_COLORS[li % LINE_COLORS.length], fontWeight: 700 }}>B = {line.blockSize}</td>
-                {line.points.filter((_, i) => i % 2 === 0).map((pt, i) => (
-                  <td key={i} style={td}>
-                    {pt.ms >= 1000 ? (pt.ms/1000).toFixed(1)+"s" : pt.ms+"ms"}
-                  </td>
-                ))}
-              </tr>
-            ))}
+            {lines.map((line, li) => {
+              const actForLine = actualPoints.filter(ap => ap.blockSize === line.blockSize);
+              return (
+                <tr key={li} style={{ background: li % 2 === 0 ? "var(--lz-bg-panel)" : "var(--lz-bg-card)" }}>
+                  <td style={{ ...td, color: LINE_COLORS[li % LINE_COLORS.length], fontWeight: 700 }}>B = {line.blockSize}</td>
+                  {line.points.filter((_, i) => i % 2 === 0).map((pt, pi) => {
+                    const lat = LATENCY_RANGE.filter((_, i) => i % 2 === 0)[pi];
+                    const act = actForLine.find(ap => ap.latencyMs === lat);
+                    return (
+                      <td key={pi} style={td}>
+                        <span style={{ color: "var(--lz-text-muted)" }}>
+                          {pt.ms >= 1000 ? (pt.ms/1000).toFixed(1)+"s" : pt.ms+"ms"}
+                        </span>
+                        {act && (
+                          <span style={{ color: "#3a7c52", display: "block", fontWeight: 700, fontSize: 10 }}>
+                            ●{act.actualMs}ms
+                          </span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>
     </div>
   );
 }
-
-const th = { padding: "6px 12px", textAlign: "right", fontSize: 11, letterSpacing: 1, fontWeight: 700, borderRight: "1px solid #3a2a1a" };
-const td = { padding: "5px 12px", textAlign: "right", fontSize: 11, color: "var(--lz-text-sub)", borderRight: "1px solid var(--lz-border)" };
 
 // ══════════════════════════════════════════════════════════════
 //  Sub-components
