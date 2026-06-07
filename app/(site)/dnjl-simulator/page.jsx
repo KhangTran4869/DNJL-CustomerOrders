@@ -159,7 +159,7 @@ export default function SimulatorPage() {
       const color = NODE_COLORS[i % NODE_COLORS.length];
       addLog(`Node ${i}: ${nodes[i].customers.length} customers, ${nodes[i].orders.length} orders`, color);
       setNodeStates(prev => prev.map((n, idx) => idx === i ? { ...n, status: "receiving" } : n));
-      await sleep(speed * 0.5);
+      await sleep(latencyMs);
       if (abortRef.current) { setRunning(false); return; }
     }
 
@@ -675,11 +675,6 @@ function ChartPanel({ lines, customers, orders, numNodes, actualPoints = [], onC
   const canvasRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
 
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    drawChart();
-  }, [lines, actualPoints]);
-
   function drawChart() {
     const canvas = canvasRef.current;
     const ctx    = canvas.getContext("2d");
@@ -831,6 +826,11 @@ function ChartPanel({ lines, customers, orders, numNodes, actualPoints = [], onC
     ctx.fillText("EXECUTION TIME", 0, 0);
     ctx.restore();
   }
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    drawChart();
+  }, [lines, actualPoints]);
 
   function handleMouseMove(e) {
     const rect = canvasRef.current.getBoundingClientRect();
