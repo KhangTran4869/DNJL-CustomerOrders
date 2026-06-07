@@ -1,0 +1,28 @@
+{
+  "name": "laluz-next",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "echo Local DNJL: http://localhost:3000/dnjl-simulator && next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "eslint"
+  },
+  "dependencies": {
+    "@fortawesome/fontawesome-free": "^7.1.0",
+    "bcryptjs": "^3.0.3",
+    "chart.js": "^4.5.1",
+    "jsonwebtoken": "^9.0.3",
+    "mysql2": "^3.16.0",
+    "next": "^16.0.8",
+    "react": "^19.2.1",
+    "react-chartjs-2": "^5.3.1",
+    "react-dom": "^19.2.1",
+    "swiper": "^12.0.3"
+  },
+  "devDependencies": {
+    "baseline-browser-mapping": "^2.10.34",
+    "eslint": "^9",
+    "eslint-config-next": "16.0.8"
+  }
+}
