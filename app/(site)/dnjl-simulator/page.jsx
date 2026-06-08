@@ -194,7 +194,7 @@ export default function SimulatorPage() {
         if (srcOrders.length === 0) continue;
 
         const numBlocks = Math.ceil(srcOrders.length / blockSize);
-        addLog(`- Node ${srcNi}→${ni}: ship ${srcOrders.length} orders trong ${numBlocks} blocks`, "#e8af55ff");
+        addLog(`- Node ${srcNi} tới ${ni}: ship ${srcOrders.length} orders trong ${numBlocks} blocks`, "#e8af55ff");
 
         for (let blk = 0; blk < numBlocks; blk++) {
           if (failedRef.current.has(srcNi) || failedRef.current.has(ni)) break;
@@ -348,20 +348,6 @@ export default function SimulatorPage() {
           {failedNodes > 0 && <StatChip label="Failed" value={failedNodes} color="#db1e09ff" />}
         </div>
       </header>
-
-      {/* ── ALERT ── */}
-      {alertMsg && (
-        <div className="sim-alert">
-          <div>
-            <div className="sim-alert__main">
-              <strong>{alertMsg.lost} records</strong> bị mất do Node {alertMsg.nodeId} crash.
-            </div>
-            <div className="sim-alert__sub">
-              Kết quả chưa đầy đủ — cần fault-tolerance để phục hồi.
-            </div>
-          </div>
-        </div>
-      )}
 
       {/* ── TABS ── */}
       <div className="sim-tabs">
@@ -608,7 +594,7 @@ export default function SimulatorPage() {
                 {done && (
                   <div className="log-done-box">
                     Simulation hoàn thành<br />
-                    <span style={{ color: "#9c8679", fontSize: 11 }}>
+                    <span style={{ color: "#c6a18bff", fontSize: 11 }}>
                       {formatNum(comparisons)} so sánh · {formatNum(matches)} kết quả · {formatNum(blocksXferred)} blocks · {netTimeMs}ms net
                     </span>
                   </div>
@@ -639,7 +625,7 @@ export default function SimulatorPage() {
       <div className="sim-theory">
         <TheoryCard
           title="Page-Oriented NLJ"
-          body={`Thay vì so sánh từng tuple, gom thành block ${blockSize} rows. Mỗi lần truyền 1 block qua mạng → giảm số packet từ |R|×|S| xuống ⌈|R|/B⌉×⌈|S|/B⌉.`}
+          body={`Thay vì so sánh từng tuple, gom thành block ${blockSize} rows. Mỗi lần truyền 1 block qua mạng -> giảm số packet từ |R|×|S| xuống ⌈|R|/B⌉×⌈|S|/B⌉.`}
           code={"FOR each block Br IN R:\n  FOR each block Bs IN S:\n    FOR r IN Br, s IN Bs:\n      IF r.id == s.id:\n        OUTPUT (r ⋈ s)"}
         />
         <TheoryCard
@@ -649,13 +635,13 @@ export default function SimulatorPage() {
         />
         <TheoryCard
           title="Block Size Trade-off"
-          body="Block nhỏ → nhiều packet → network overhead cao. Block lớn → ít packet nhưng tốn memory. Điểm tối ưu phụ thuộc latency và RAM của từng node."
-          code={"B=1  → max packets, min mem\nB=10 → balanced\nB=100→ min packets, max mem\nOptimal: B = √(M × |S|)"}
+          body="Block nhỏ -> nhiều packet -> network overhead cao. Block lớn -> ít packet nhưng tốn memory. Điểm tối ưu phụ thuộc latency và RAM của từng node."
+          code={"B=1  -> max packets, min mem\nB=10 -> balanced\nB=100→ min packets, max mem\nOptimal: B = √(M × |S|)"}
         />
         <TheoryCard
           title="Fault Tolerance"
-          body="Node crash → mất phân mảnh Rᵢ. Kết quả PARTIAL. Giải pháp: replication (sao lưu dữ liệu), checkpoint (lưu trạng thái), hoặc saga pattern."
-          code={"Node fail → missing Rᵢ\nResult: PARTIAL JOIN\nFix: replication\n     checkpoint\n     saga pattern"}
+          body="Node crash -> mất phân mảnh Rᵢ. Kết quả PARTIAL. Giải pháp: replication (sao lưu dữ liệu), checkpoint (lưu trạng thái), hoặc saga pattern."
+          code={"Node fail -> missing Rᵢ\nResult: PARTIAL JOIN\nFix: replication\n     checkpoint\n     saga pattern"}
         />
       </div>
     </div>
