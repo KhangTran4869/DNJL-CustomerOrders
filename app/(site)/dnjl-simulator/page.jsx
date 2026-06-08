@@ -8,9 +8,6 @@ import {
   formatMoney, formatNum, sleep,
 } from "./data.js";
 
-// ── initial dataset (small) ───────────────────────────
-const INIT = generateDataset(5, 7);
-
 // ══════════════════════════════════════════════════════════════
 export default function SimulatorPage() {
 
@@ -19,8 +16,9 @@ export default function SimulatorPage() {
   const [speed,       setSpeed]       = useState(600);
   const [blockSize,   setBlockSize]   = useState(10);
   const [latencyMs,   setLatencyMs]   = useState(50);
-  const [customers,   setCustomers]   = useState(INIT.customers);
-  const [orders,      setOrders]      = useState(INIT.orders);
+  const [customers,   setCustomers]   = useState(() => generateDataset(5, 7).customers);
+  const [orders,      setOrders]      = useState(() => generateDataset(5, 7).orders);
+  const [mounted,     setMounted]      = useState(false);
   const [presetIdx,   setPresetIdx]   = useState(0);
   const [activeTab,   setActiveTab]   = useState("sim");
 
@@ -42,15 +40,22 @@ export default function SimulatorPage() {
   const [alertMsg,       setAlertMsg]       = useState(null);
 
   // ── chart state ──────────────────────────────────────────────
-  const [chartLines,     setChartLines]     = useState([]);
+  const [chartLines,     setChartLines]     = useState([]); 
   const [chartTooltip,   setChartTooltip]   = useState(null);
-  const [actualPoints,   setActualPoints]   = useState([]);
+  const [actualPoints,   setActualPoints]   = useState([]); 
   const chartRef = useRef(null);
 
   const abortRef  = useRef(false);
   const failedRef = useRef(new Set());
   const logEndRef = useRef(null);
-  const simStartTime = performance.now();
+
+  // Generate random data only on client to avoid SSR hydration mismatch
+  useEffect(() => {
+    const d = generateDataset(5, 7);
+    setCustomers(d.customers);
+    setOrders(d.orders);
+    setMounted(true);
+  }, []);
 
   // ── build chart data when tab opens or config changes ────────
   useEffect(() => {
@@ -77,22 +82,25 @@ export default function SimulatorPage() {
 
   function distributeData() {
     const nodes = Array.from({ length: numNodes }, (_, i) => ({
-      id: i, customers: [], orders: [], localResults: [], status: "idle", failed: false,
+      id: i,
+      customers: [],  
+      orders: [],      
+      localResults: [],
+      status: "idle",
+      failed: false,
       blocksProcessed: 0,
     }));
     customers.forEach((c, i) => nodes[i % numNodes].customers.push(c));
-    orders.forEach((o, i)    => nodes[i % numNodes].orders.push(o));
     return nodes;
   }
 
   function markNodeFailed(nodeId, nodes) {
     const lostC = nodes[nodeId]?.customers?.length ?? 0;
-    const lostO = nodes[nodeId]?.orders?.length    ?? 0;
-    const lost  = lostC + lostO;
+    const lost  = lostC; 
     failedRef.current.add(nodeId);
     setFailedNodes(failedRef.current.size);
     setLostData(prev => prev + lost);
-    setAlertMsg({ nodeId, lostC, lostO, lost });
+    setAlertMsg({ nodeId, lostC, lost });
     setNodeStates(prev => prev.map((n, i) => i === nodeId ? { ...n, status: "failed", failed: true } : n));
     addLog(`COORDINATOR: mất kết nối Node ${nodeId}!`, "#f91b02ff");
     addLog(`Node ${nodeId}: CRASHED — ${lost} records bị mất`, "#f91b02ff");
@@ -149,6 +157,7 @@ export default function SimulatorPage() {
     setAlertMsg(null);
     abortRef.current  = false;
     failedRef.current = new Set();
+    const simStartTime = performance.now();
 
     const nodes = distributeData();
     setNodeStates(nodes.map(n => ({ ...n })));
@@ -159,21 +168,26 @@ export default function SimulatorPage() {
       const color = NODE_COLORS[i % NODE_COLORS.length];
       addLog(`Node ${i}: ${nodes[i].customers.length} customers, ${nodes[i].orders.length} orders`, color);
       setNodeStates(prev => prev.map((n, idx) => idx === i ? { ...n, status: "receiving" } : n));
-      await sleep(latencyMs);
+      await sleep(speed * 0.6);
       if (abortRef.current) { setRunning(false); return; }
+      setTransferring(null);
     }
+    addLog("── Site A: phân phối xong, mỗi node giữ phân mảnh Customers riêng", "#b38a6a");
+    await sleep(speed * 0.3);
 
     // ─ Phase 2: Page-Oriented NLJ ───────────────────────────
-    addLog(`PAGE-ORIENTED NLJ  [block=${blockSize}, latency=${latencyMs}ms]`, "#f4b688ff");
-    await sleep(speed * 0.6);
+    // Mỗi worker: outer = phân mảnh Customers của mình (từ Site A)
+    //             inner = kéo toàn bộ Orders từ Site B theo block
+    addLog(`═══ PHASE 2: Page-Oriented NLJ  [block=${blockSize}, latency=${latencyMs}ms] ═══`, "#b38a6a");
+    await sleep(speed * 0.5);
     if (abortRef.current) { setRunning(false); return; }
 
-    const allOrders  = nodes.flatMap(n => n.orders);
     const allResults = [];
     let totalComparisons = 0;
     let totalMatches     = 0;
     let totalBlocks      = 0;
     let totalNetMs       = 0;
+    const numInnerBlocks = Math.ceil(orders.length / blockSize);
 
     for (let ni = 0; ni < nodes.length; ni++) {
       if (failedRef.current.has(ni)) {
@@ -187,61 +201,44 @@ export default function SimulatorPage() {
       await sleep(speed * 0.3);
       if (abortRef.current) { setRunning(false); return; }
 
-      // Ship inner relation in blocks from other nodes
-      for (let srcNi = 0; srcNi < nodes.length; srcNi++) {
-        if (srcNi === ni || failedRef.current.has(srcNi)) continue;
-        const srcOrders = nodes[srcNi].orders;
-        if (srcOrders.length === 0) continue;
-
-        const numBlocks = Math.ceil(srcOrders.length / blockSize);
-        addLog(`- Node ${srcNi} tới ${ni}: ship ${srcOrders.length} orders trong ${numBlocks} blocks`, "#e8af55ff");
-
-        for (let blk = 0; blk < numBlocks; blk++) {
-          if (failedRef.current.has(srcNi) || failedRef.current.has(ni)) break;
-          const blockStart = blk * blockSize;
-          const blockEnd   = Math.min(blockStart + blockSize, srcOrders.length);
-          const blockCount = blockEnd - blockStart;
-
-          setTransferring({ from: srcNi, to: ni, data: `Block ${blk+1}/${numBlocks} (${blockCount} orders)` });
-          totalBlocks++;
-          totalNetMs += latencyMs;
-          setBlocksXferred(totalBlocks);
-          setNetTimeMs(Math.round(totalNetMs));
-
-          await sleep(speed * 0.25);
-          if (abortRef.current) { setRunning(false); return; }
-          setTransferring(null);
-        }
-      }
-
-      // Outer loop: iterate customers in blocks
+      // Outer loop: iterate local customers (from Site A) in blocks
       const outerBlocks = Math.ceil(nodes[ni].customers.length / blockSize);
       for (let oblk = 0; oblk < outerBlocks; oblk++) {
         if (failedRef.current.has(ni)) {
           addLog(`- Node ${ni} crash giữa chừng`, "#ff0000ff"); break;
         }
 
-        const oStart = oblk * blockSize;
-        const oEnd   = Math.min(oStart + blockSize, nodes[ni].customers.length);
+        const oStart     = oblk * blockSize;
+        const oEnd       = Math.min(oStart + blockSize, nodes[ni].customers.length);
         const outerBlock = nodes[ni].customers.slice(oStart, oEnd);
-
         setActiveOuter({ nodeId: ni, block: oblk, size: outerBlock.length });
-        addLog(`  [Node ${ni}] outer block ${oblk+1}/${outerBlocks}: ${outerBlock.length} customers`, color);
 
-        // Inner loop: iterate all orders in blocks
-        const availOrders = allOrders.filter(o => {
-          const owner = nodes.findIndex(n => n.orders.includes(o));
-          return !failedRef.current.has(owner);
-        });
-        const innerBlocks = Math.ceil(availOrders.length / blockSize);
+        // Inner loop: kéo từng block Orders từ Site B
+        for (let iblk = 0; iblk < numInnerBlocks; iblk++) {
+          if (failedRef.current.has(ni)) break;
 
-        for (let iblk = 0; iblk < innerBlocks; iblk++) {
-          const iStart = iblk * blockSize;
-          const iEnd   = Math.min(iStart + blockSize, availOrders.length);
-          const innerBlock = availOrders.slice(iStart, iEnd);
+          const iStart     = iblk * blockSize;
+          const iEnd       = Math.min(iStart + blockSize, orders.length);
+          const innerBlock = orders.slice(iStart, iEnd);
           setActiveInner({ block: iblk, size: innerBlock.length });
 
-          // Compare each outer × inner within block
+          // Simulate: Node kéo block Orders từ Site B qua mạng
+          setTransferring({ from: "siteB", to: ni, data: `Orders block ${iblk+1}/${numInnerBlocks}` });
+          totalBlocks++;
+          totalNetMs += latencyMs;
+          setBlocksXferred(totalBlocks);
+          setNetTimeMs(Math.round(totalNetMs));
+
+          if (oblk === 0) {
+            // chỉ log lần kéo block đầu tiên của outer block đầu để tránh spam
+            addLog(`  Site B → Node ${ni}: kéo orders block ${iblk+1}/${numInnerBlocks} (${innerBlock.length} rows)`, "#9c8679");
+          }
+
+          await sleep(speed * 0.18);
+          if (abortRef.current) { setRunning(false); return; }
+          setTransferring(null);
+
+          // Compare outer block × inner block
           for (const cust of outerBlock) {
             for (const ord of innerBlock) {
               totalComparisons++;
@@ -260,13 +257,9 @@ export default function SimulatorPage() {
             }
           }
 
-          // Update block counter on node
           setNodeStates(prev => prev.map((n, idx) =>
             idx === ni ? { ...n, blocksProcessed: (n.blocksProcessed || 0) + 1 } : n
           ));
-
-          await sleep(speed * 0.18);
-          if (abortRef.current) { setRunning(false); return; }
         }
       }
 
@@ -302,6 +295,7 @@ export default function SimulatorPage() {
     addLog(`    Network time: ${Math.round(totalNetMs)}ms  (${totalBlocks} packets × ${latencyMs}ms)`, "#c3652eff");
     const actualMs = Math.round(performance.now() - simStartTime);
     setActualPoints(prev => [...prev, { blockSize, latencyMs, actualMs }]);
+    setRunning(false);
     setDone(true);
   }
 
@@ -331,6 +325,14 @@ export default function SimulatorPage() {
   // ════════════════════════════════════════════════════════════
   //  RENDER
   // ════════════════════════════════════════════════════════════
+  if (!mounted) return (
+    <div style={{ minHeight: "100vh", background: "#faf8f5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <div style={{ fontFamily: "var(--lz-mono,'JetBrains Mono',monospace)", color: "#b38a6a", fontSize: 14 }}>
+        Đang khởi tạo simulator...
+      </div>
+    </div>
+  );
+
   return (
     <div className="sim-root">
 
@@ -348,6 +350,21 @@ export default function SimulatorPage() {
           {failedNodes > 0 && <StatChip label="Failed" value={failedNodes} color="#db1e09ff" />}
         </div>
       </header>
+
+      {/* ── ALERT ── */}
+      {/* {alertMsg && (
+        <div className="sim-alert">
+          <div className="sim-alert__icon"></div>
+          <div>
+            <div className="sim-alert__main">
+              <strong>{alertMsg.lost} records</strong> bị mất do Node {alertMsg.nodeId} crash.
+            </div>
+            <div className="sim-alert__sub">
+              Kết quả chưa đầy đủ — cần fault-tolerance để phục hồi.
+            </div>
+          </div>
+        </div>
+      )} */}
 
       {/* ── TABS ── */}
       <div className="sim-tabs">
@@ -449,7 +466,7 @@ export default function SimulatorPage() {
 
             {/* Tables */}
             <div className="sim-section">
-              <p className="sim-section__title">Customers</p>
+              <p className="sim-section__title">Site A — Customers</p>
               {isLargeDataset ? (
                 <div className="mini-table-notice">
                   <strong>{formatNum(customers.length)}</strong> rows — quá lớn để hiển thị<br />
@@ -471,7 +488,7 @@ export default function SimulatorPage() {
             </div>
 
             <div className="sim-section">
-              <p className="sim-section__title">Orders</p>
+              <p className="sim-section__title">Site B — Orders</p>
               {isLargeDataset ? (
                 <div className="mini-table-notice">
                   <strong>{formatNum(orders.length)}</strong> rows — quá lớn để hiển thị
@@ -515,13 +532,33 @@ export default function SimulatorPage() {
                 <InfoPill label="Est. net time" value={`${formatNum(calcExecTime(customers.length, orders.length, blockSize, latencyMs, numNodes))}ms`} color="var(--lz-success)" />
               </div>
 
+              {/* Site legend */}
+              <div style={{ display: "flex", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
+                <div style={{ background: "#fff8f2", border: "2px solid #b38a6a", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontFamily: "var(--lz-mono)" }}>
+                  <div style={{ fontWeight: 700, color: "#b38a6a", marginBottom: 3 }}>Site A — Customers</div>
+                  <div style={{ color: "var(--lz-text-sub)", fontSize: 11 }}>{customers.length.toLocaleString()} rows · outer relation R</div>
+                  <div style={{ color: "var(--lz-text-muted)", fontSize: 10, marginTop: 2 }}>phân mảnh R₀…R{numNodes-1} gửi đến workers</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", color: "var(--lz-text-muted)", fontSize: 18 }}>⇄</div>
+                <div style={{ background: "#f5f8ff", border: "2px solid #c59d5f", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontFamily: "var(--lz-mono)" }}>
+                  <div style={{ fontWeight: 700, color: "#c59d5f", marginBottom: 3 }}>Site B — Orders</div>
+                  <div style={{ color: "var(--lz-text-sub)", fontSize: 11 }}>{orders.length.toLocaleString()} rows · inner relation S</div>
+                  <div style={{ color: "var(--lz-text-muted)", fontSize: 10, marginTop: 2 }}>mỗi worker kéo toàn bộ S theo block</div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", color: "var(--lz-text-muted)", fontSize: 18 }}>⇄</div>
+                <div style={{ background: "var(--lz-bg-panel)", border: "1px solid var(--lz-border)", borderRadius: 8, padding: "8px 16px", fontSize: 12, fontFamily: "var(--lz-mono)" }}>
+                  <div style={{ fontWeight: 700, color: "var(--lz-taupe)", marginBottom: 3 }}>Workers ({numNodes} nodes)</div>
+                  <div style={{ color: "var(--lz-text-sub)", fontSize: 11 }}>nhận Rᵢ từ Site A</div>
+                  <div style={{ color: "var(--lz-text-muted)", fontSize: 10, marginTop: 2 }}>kéo S từ Site B, join cục bộ</div>
+                </div>
+              </div>
               <div className="node-cards-row">
                 {displayNodes.map((node, i) => (
                   <NodeCard key={i} node={node} colorIndex={i}
                     isActive={activeOuter?.nodeId === i}
-                    isTransfer={transferring?.from === i || transferring?.to === i}
-                    transferData={transferring && (transferring.from === i || transferring.to === i) ? transferring.data : null}
-                    isSrc={transferring?.from === i}
+                    isTransfer={transferring?.to === i}
+                    transferData={transferring?.to === i ? transferring.data : null}
+                    isSrc={false}
                     running={running}
                     onKill={() => handleKillNode(i)}
                   />
@@ -530,11 +567,13 @@ export default function SimulatorPage() {
 
               {transferring && (
                 <div className="transfer-strip">
-                  <span style={{ color: NODE_COLORS[transferring.from % NODE_COLORS.length] }}>Node {transferring.from}</span>
+                  <span style={{ color: transferring.from === "siteA" ? "#b38a6a" : transferring.from === "siteB" ? "#c59d5f" : NODE_COLORS[transferring.from % NODE_COLORS.length] }}>
+                    {transferring.from === "siteA" ? "Site A" : transferring.from === "siteB" ? "Site B" : `Node ${transferring.from}`}
+                  </span>
                   <span>──</span>
-                  <span style={{ color: NODE_COLORS[transferring.to   % NODE_COLORS.length] }}>Node {transferring.to}</span>
+                  <span style={{ color: NODE_COLORS[transferring.to % NODE_COLORS.length] }}>Node {transferring.to}</span>
                   <span style={{ marginLeft: 6, color: "var(--lz-taupe)" }}>{transferring.data}</span>
-                  <span className="transfer-detail">+{latencyMs}ms</span>
+                  {transferring.from === "siteB" && <span className="transfer-detail">+{latencyMs}ms</span>}
                 </div>
               )}
 
@@ -625,7 +664,7 @@ export default function SimulatorPage() {
       <div className="sim-theory">
         <TheoryCard
           title="Page-Oriented NLJ"
-          body={`Thay vì so sánh từng tuple, gom thành block ${blockSize} rows. Mỗi lần truyền 1 block qua mạng -> giảm số packet từ |R|×|S| xuống ⌈|R|/B⌉×⌈|S|/B⌉.`}
+          body={`Thay vì so sánh từng tuple, gom thành block ${blockSize} rows. Mỗi lần truyền 1 block qua mạng → giảm số packet từ |R|×|S| xuống ⌈|R|/B⌉×⌈|S|/B⌉.`}
           code={"FOR each block Br IN R:\n  FOR each block Bs IN S:\n    FOR r IN Br, s IN Bs:\n      IF r.id == s.id:\n        OUTPUT (r ⋈ s)"}
         />
         <TheoryCard
@@ -635,13 +674,13 @@ export default function SimulatorPage() {
         />
         <TheoryCard
           title="Block Size Trade-off"
-          body="Block nhỏ -> nhiều packet -> network overhead cao. Block lớn -> ít packet nhưng tốn memory. Điểm tối ưu phụ thuộc latency và RAM của từng node."
-          code={"B=1  -> max packets, min mem\nB=10 -> balanced\nB=100→ min packets, max mem\nOptimal: B = √(M × |S|)"}
+          body="Block nhỏ → nhiều packet → network overhead cao. Block lớn → ít packet nhưng tốn memory. Điểm tối ưu phụ thuộc latency và RAM của từng node."
+          code={"B=1  → max packets, min mem\nB=10 → balanced\nB=100→ min packets, max mem\nOptimal: B = √(M × |S|)"}
         />
         <TheoryCard
           title="Fault Tolerance"
-          body="Node crash -> mất phân mảnh Rᵢ. Kết quả PARTIAL. Giải pháp: replication (sao lưu dữ liệu), checkpoint (lưu trạng thái), hoặc saga pattern."
-          code={"Node fail -> missing Rᵢ\nResult: PARTIAL JOIN\nFix: replication\n     checkpoint\n     saga pattern"}
+          body="Node crash → mất phân mảnh Rᵢ. Kết quả PARTIAL. Giải pháp: replication (sao lưu dữ liệu), checkpoint (lưu trạng thái), hoặc saga pattern."
+          code={"Node fail → missing Rᵢ\nResult: PARTIAL JOIN\nFix: replication\n     checkpoint\n     saga pattern"}
         />
       </div>
     </div>
@@ -660,6 +699,11 @@ const td = { padding: "5px 12px", textAlign: "right", fontSize: 11, color: "var(
 function ChartPanel({ lines, customers, orders, numNodes, actualPoints = [], onClear }) {
   const canvasRef = useRef(null);
   const [tooltip, setTooltip] = useState(null);
+
+  useEffect(() => {
+    if (!canvasRef.current) return;
+    drawChart();
+  }, [lines, actualPoints]);
 
   function drawChart() {
     const canvas = canvasRef.current;
@@ -813,11 +857,6 @@ function ChartPanel({ lines, customers, orders, numNodes, actualPoints = [], onC
     ctx.restore();
   }
 
-  useEffect(() => {
-    if (!canvasRef.current) return;
-    drawChart();
-  }, [lines, actualPoints]);
-
   function handleMouseMove(e) {
     const rect = canvasRef.current.getBoundingClientRect();
     const mx   = e.clientX - rect.left;
@@ -877,7 +916,7 @@ function ChartPanel({ lines, customers, orders, numNodes, actualPoints = [], onC
           fontSize: 12, color: "var(--lz-warn)", marginBottom: 12,
           fontFamily: "var(--lz-mono)",
         }}>
-          ⓘ Chạy simulation ít nhất 1 lần để thấy điểm thực tế (●) trên đồ thị.
+          Chạy simulation ít nhất 1 lần để thấy điểm thực tế trên đồ thị.
           Thay đổi Block Size hoặc Latency rồi chạy lại để so sánh.
         </div>
       )}

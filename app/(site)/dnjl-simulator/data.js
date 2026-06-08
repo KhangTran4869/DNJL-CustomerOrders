@@ -45,7 +45,7 @@ export const FAILURE_SCENARIOS = [
 // ── Dataset presets ──────────────────────────────────────────
 export const DATASET_PRESETS = [
   { label: "Nhỏ (demo)",   customers: 5,    orders: 7      },
-  { label: "Vừa",          customers: 50,   orders: 500    },
+  { label: "Vừa",          customers: 20,   orders: 100    },
   { label: "Lớn",          customers: 200,  orders: 5_000  },
   { label: "Thực tế",      customers: 1_000, orders: 100_000 },
 ];

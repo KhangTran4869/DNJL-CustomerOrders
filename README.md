@@ -1,41 +1,79 @@
-Distributed Nested Loop Join Simulator
-Dự án mô phỏng thuật toán Distributed Nested Loop Join (DNJL) trên dữ liệu mẫu `Customers` và `Orders`. Ứng dụng được xây dựng bằng Next.js, dùng để minh họa cách dữ liệu được phân tán lên nhiều node, cách từng node thực hiện join cục bộ và cách coordinator thu thập kết quả.
-1. Giới thiệu
-Distributed Nested Loop Join Simulator là một website mô phỏng trực quan quá trình join dữ liệu trong môi trường cơ sở dữ liệu phân tán. Dữ liệu ban đầu gồm hai bảng:
-`Customers`: danh sách khách hàng.
-`Orders`: danh sách đơn hàng.
-Hai bảng được chia đều cho nhiều node. Sau đó, hệ thống thực hiện thuật toán Nested Loop Join để tìm các đơn hàng tương ứng với từng khách hàng thông qua khóa `customer_id`.
-Project phù hợp cho môn Cơ sở dữ liệu phân tán, đặc biệt khi cần trình bày quá trình xử lý join, phân tán dữ liệu, thu thập kết quả và mô phỏng lỗi node.
-2. Công nghệ sử dụng
-Next.js 16
-React 19
-JavaScript
-CSS
-Turbopack
-Một số thư viện có trong project:
-`next`
-`react`
-`react-dom`
-`chart.js`
-`react-chartjs-2`
-`swiper`
-`mysql2`
-`bcryptjs`
-`jsonwebtoken`
-3. Chức năng chính
-Mô phỏng phân tán dữ liệu `Customers` và `Orders` lên nhiều node.
-Thực hiện thuật toán Distributed Nested Loop Join.
-Hiển thị trạng thái xử lý của từng node.
-Ghi log từng bước trong quá trình mô phỏng.
-Đếm số phép so sánh và số kết quả join thành công.
-Hiển thị kết quả join cuối cùng.
-Cho phép điều chỉnh số lượng node.
-Cho phép điều chỉnh tốc độ mô phỏng.
-Mô phỏng lỗi node trong quá trình xử lý.
-Hiển thị số node bị lỗi và lượng dữ liệu bị mất.
-4. Cấu trúc thư mục chính
+# Distributed Nested Loop Join Simulator
+
+Distributed Nested Loop Join Simulator là một project mô phỏng thuật toán **Distributed Nested Loop Join (DNJL)** trên hai bảng dữ liệu mẫu `Customers` và `Orders`. Ứng dụng được xây dựng bằng **Next.js** và **React**, dùng để minh họa cách dữ liệu được phân tán lên nhiều node, cách thuật toán join xử lý theo block, cách network latency ảnh hưởng đến thời gian thực thi, và cách lỗi node ảnh hưởng đến kết quả truy vấn phân tán.
+
+## 1. Giới thiệu
+
+●	Name: Trần Hoàng Gia Khang
+●	MSSV: N23DCCN028
+●	Project Title: #13 Distributed Nested Loop Join Simulator: “Customer–Orders”
+
+Trong cơ sở dữ liệu phân tán, dữ liệu thường không nằm tập trung tại một máy duy nhất mà được phân bố trên nhiều site/node khác nhau. Khi thực hiện phép join giữa các bảng nằm trên nhiều node, hệ thống cần quan tâm không chỉ đến chi phí xử lý cục bộ mà còn đến chi phí truyền dữ liệu qua mạng.
+
+Project này mô phỏng phép join giữa hai quan hệ:
+
 ```txt
-laluz-next/
+Customers(customer_id, name, city)
+Orders(order_id, customer_id, product, amount)
+```
+
+Điều kiện join:
+
+```txt
+Customers.customer_id = Orders.customer_id
+```
+
+Mục tiêu chính của simulator là phân tích ảnh hưởng của:
+
+```txt
+- Block Size
+- Network Latency
+- Number of Nodes
+- Node Failure
+```
+
+đến quá trình thực thi thuật toán Distributed Nested Loop Join.
+
+## 2. Công nghệ sử dụng
+
+| Thành phần           | Công nghệ                           |
+| -------------------- | ----------------------------------- |
+| Programming Language | JavaScript / JSX                    |
+| Frontend Framework   | Next.js, React                      |
+| Routing              | Next.js App Router                  |
+| Algorithm Simulation | JavaScript async/await, React state |
+| Visualization        | Canvas chart panel                  |
+| Dataset              | Synthetic data generated at runtime |
+| Deployment           | Localhost bằng npm                  |
+| Quality Check        | ESLint                              |
+
+## 3. Chức năng chính
+
+Project hiện hỗ trợ các chức năng chính sau:
+
+```txt
+- Sinh dữ liệu mẫu Customers và Orders.
+- Chọn preset dataset: nhỏ, vừa, lớn, thực tế.
+- Phân tán dữ liệu lên nhiều node.
+- Mô phỏng thuật toán Page-Oriented Distributed Nested Loop Join.
+- Cho phép thay đổi Block Size.
+- Cho phép thay đổi Network Latency từ 1ms đến 200ms.
+- Hiển thị số packet/block đã truyền.
+- Hiển thị network time.
+- Đếm số phép so sánh.
+- Đếm số kết quả join thành công.
+- Ghi log từng bước trong quá trình mô phỏng.
+- Hiển thị trạng thái từng node.
+- Mô phỏng lỗi node.
+- Hiển thị dữ liệu bị mất khi node crash.
+- Vẽ biểu đồ Execution Time vs Network Latency.
+- So sánh execution time theo nhiều block size khác nhau.
+```
+
+## 4. Cấu trúc thư mục
+
+```txt
+DNJL/
 ├── app/
 │   ├── (site)/
 │   │   └── dnjl-simulator/
@@ -46,120 +84,95 @@ laluz-next/
 │   ├── globals.css
 │   ├── layout.js
 │   └── favicon.ico
+├── eslint.config.mjs
+├── jsconfig.json
 ├── next.config.mjs
 ├── package.json
 ├── package-lock.json
-├── jsconfig.json
-├── eslint.config.mjs
 └── README.md
 ```
+
 Trong đó:
-`app/(site)/dnjl-simulator/page.jsx`: file chính chứa giao diện và logic mô phỏng.
-`app/(site)/dnjl-simulator/data.js`: dữ liệu mẫu, màu node, trạng thái node và các kịch bản lỗi.
-`app/(site)/dnjl-simulator/style.css`: giao diện của trang mô phỏng.
-`app/layout.js`: layout gốc của ứng dụng.
-`app/globals.css`: CSS dùng chung toàn project.
-`next.config.mjs`: cấu hình Next.js.
-`package.json`: danh sách dependencies và scripts chạy project.
-5. Yêu cầu cài đặt
+
+| File                                  | Vai trò                                                                             |
+| ------------------------------------- | ----------------------------------------------------------------------------------- |
+| `app/(site)/dnjl-simulator/page.jsx`  | File chính chứa giao diện và logic mô phỏng                                         |
+| `app/(site)/dnjl-simulator/data.js`   | Chứa hàm sinh dataset, preset, latency range, block size options, failure scenarios |
+| `app/(site)/dnjl-simulator/style.css` | CSS riêng cho trang simulator                                                       |
+| `app/layout.js`                       | Layout gốc của Next.js                                                              |
+| `app/globals.css`                     | CSS global                                                                          |
+| `package.json`                        | Khai báo scripts và dependencies                                                    |
+| `next.config.mjs`                     | Cấu hình Next.js                                                                    |
+
+## 5. Yêu cầu cài đặt
+
 Trước khi chạy project, cần cài đặt:
-Node.js phiên bản 20 trở lên. Khuyến nghị dùng Node.js 22.
-npm đi kèm với Node.js.
-Kiểm tra phiên bản Node.js và npm:
+
+```txt
+- Node.js 20 trở lên
+- npm
+```
+
+Khuyến nghị sử dụng Node.js 22.
+
+Kiểm tra phiên bản:
+
 ```bash
 node -v
 npm -v
 ```
-6. Cài đặt project
-Sau khi tải project về, mở terminal tại thư mục gốc của project:
+
+## 6. Cài đặt project
+
+Clone project từ GitHub:
+
 ```bash
-cd laluz-next
+git clone <your-repository-url>
+cd DNJL
 ```
-Cài đặt các thư viện cần thiết:
+
+Cài đặt dependencies:
+
 ```bash
 npm install
 ```
-7. Chạy project ở chế độ development
-Chạy lệnh:
+
+## 7. Chạy project
+
+Chạy project ở chế độ development:
+
 ```bash
 npm run dev
 ```
-Sau khi server chạy thành công, mở trình duyệt tại:
+
+Sau đó mở trình duyệt tại:
+
 ```txt
 http://localhost:3000/dnjl-simulator
 ```
-Trong project hiện tại, script `dev` có in thêm đường dẫn tiện sử dụng:
+
+Trong `package.json`, script `dev` đã được cấu hình để in ra đường dẫn nhanh:
+
 ```json
 "dev": "echo Local DNJL: http://localhost:3000/dnjl-simulator && next dev"
 ```
-Lưu ý: Next.js vẫn có thể hiển thị dòng mặc định:
+
+Lưu ý: Next.js vẫn có thể hiển thị địa chỉ mặc định:
+
 ```txt
-Local: http://localhost:3000
+http://localhost:3000
 ```
-Đây là địa chỉ server development của Next.js. Trang mô phỏng chính của project nằm tại route:
+
+Tuy nhiên, trang simulator chính nằm tại:
+
 ```txt
 /dnjl-simulator
 ```
-8. Build project
-Để build project cho môi trường production:
-```bash
-npm run build
-```
-Sau khi build thành công, chạy production server:
-```bash
-npm run start
-```
-Mở trình duyệt tại:
-```txt
-http://localhost:3000/dnjl-simulator
-```
-9. Mô tả thuật toán Distributed Nested Loop Join
-Thuật toán Distributed Nested Loop Join trong project được mô phỏng theo các bước chính:
-Khởi tạo dữ liệu
-Tạo dữ liệu mẫu cho bảng `Customers`.
-Tạo dữ liệu mẫu cho bảng `Orders`.
-Phân tán dữ liệu
-Dữ liệu được chia đều cho các node.
-Mỗi node nhận một phần dữ liệu khách hàng và đơn hàng.
-Join cục bộ tại từng node
-Mỗi node duyệt từng customer.
-Với mỗi customer, node tiếp tục duyệt từng order.
-Nếu `customer.customer_id === order.customer_id`, hệ thống tạo một kết quả join.
-Thu thập kết quả
-Coordinator nhận kết quả từ các node.
-Các kết quả join được gom lại và hiển thị trên giao diện.
-Mô phỏng lỗi node
-Một hoặc nhiều node có thể bị crash trong quá trình xử lý.
-Khi node bị lỗi, dữ liệu nằm trên node đó được xem như bị mất.
-Hệ thống cập nhật trạng thái node, log lỗi và thống kê dữ liệu bị ảnh hưởng.
-10. Dữ liệu mẫu
-Dữ liệu mẫu được đặt trong file:
-```txt
-app/(site)/dnjl-simulator/data.js
-```
-Ví dụ bảng `Customers`:
-```js
-export const DEFAULT_CUSTOMERS = [
-  { customer_id: 1, name: "Nguyễn Văn An", city: "Hà Nội" },
-  { customer_id: 2, name: "Trần Thị Bình", city: "TP.HCM" },
-  { customer_id: 3, name: "Lê Minh Cường", city: "Đà Nẵng" },
-];
-```
-Ví dụ bảng `Orders`:
-```js
-export const DEFAULT_ORDERS = [
-  { order_id: 101, customer_id: 1, product: "Chanel No.5", amount: 4500000 },
-  { order_id: 102, customer_id: 3, product: "Dior Sauvage", amount: 3200000 },
-];
-```
-Có thể chỉnh sửa dữ liệu mẫu trực tiếp trong file này để thay đổi nội dung mô phỏng.
-11. Các kịch bản lỗi node
-Project có sẵn một số kịch bản lỗi trong file `data.js`:
-Node giữa bị lỗi: node 1 bị crash sau một khoảng thời gian.
-Lỗi dây chuyền: nhiều node lần lượt bị crash.
-Lỗi khi thu thập: node cuối bị crash khi coordinator đang thu thập kết quả.
-Các kịch bản này giúp minh họa ảnh hưởng của lỗi node trong môi trường cơ sở dữ liệu phân tán.
-12. Scripts trong package.json
+
+## 8. Scripts
+
+Các lệnh chính trong project:
+
 ```json
 {
   "scripts": {
@@ -170,29 +183,197 @@ Các kịch bản này giúp minh họa ảnh hưởng của lỗi node trong m�
   }
 }
 ```
+
 Ý nghĩa:
-`npm run dev`: chạy project ở chế độ development.
-`npm run build`: build project cho production.
-`npm run start`: chạy project sau khi build.
-`npm run lint`: kiểm tra lỗi code bằng ESLint.
-13. Ghi chú cấu hình
-Project đang dùng route thật:
-```txt
-app/(site)/dnjl-simulator/page.jsx
+
+| Lệnh            | Mô tả                                |
+| --------------- | ------------------------------------ |
+| `npm run dev`   | Chạy project ở chế độ development    |
+| `npm run build` | Build project cho production         |
+| `npm run start` | Chạy production server sau khi build |
+| `npm run lint`  | Kiểm tra chất lượng code bằng ESLint |
+
+## 9. Dataset
+
+Dataset được sinh tự động tại runtime, không cần database bên ngoài.
+
+Các preset có sẵn:
+
+| Preset   | Customers |  Orders |
+| -------- | --------: | ------: |
+| Nhỏ demo |         5 |       7 |
+| Vừa      |        50 |     500 |
+| Lớn      |       200 |   5,000 |
+| Thực tế  |     1,000 | 100,000 |
+
+Cấu trúc dữ liệu:
+
+```js
+Customers = [
+  {
+    customer_id: 1,
+    name: "Nguyễn Văn An",
+    city: "Hà Nội"
+  }
+]
 ```
-Vì vậy không bắt buộc phải dùng `basePath` trong `next.config.mjs`. Chỉ cần mở đúng URL:
-```txt
-http://localhost:3000/dnjl-simulator
+
+```js
+Orders = [
+  {
+    order_id: 101,
+    customer_id: 1,
+    product: "Chanel No.5",
+    amount: 4500000
+  }
+]
 ```
-Nếu thêm `basePath: '/dnjl-simulator'`, toàn bộ ứng dụng sẽ bị đặt dưới base path này và có thể gây nhầm lẫn với route thật `/dnjl-simulator`. Với project hiện tại, nên giữ cách dùng route thật để đơn giản và dễ chạy trong môi trường development.
-14. Lưu ý khi đưa project lên GitHub
-Không nên đưa các thư mục hoặc file sau lên GitHub:
+
+Dữ liệu được sinh trong file:
+
 ```txt
-node_modules/
-.next/
-.env
-.env.local
+app/(site)/dnjl-simulator/data.js
 ```
-Các mục này đã được cấu hình trong `.gitignore`. Nếu file zip hoặc repository đang có thư mục `.next`, có thể xóa thư mục này trước khi nộp hoặc push code vì đây là thư mục build/cache được Next.js tự tạo lại.
-15. Tác giả
-Project được thực hiện cho mục đích học tập và mô phỏng thuật toán trong môn Cơ sở dữ liệu phân tán.
+
+## 10. Mô tả thuật toán
+
+Project mô phỏng thuật toán **Page-Oriented Distributed Nested Loop Join**.
+
+Ý tưởng chính:
+
+```txt
+FOR each customer block:
+  FOR each order block:
+    simulate network transfer
+    FOR each customer in customer block:
+      FOR each order in order block:
+        IF customer.customer_id == order.customer_id:
+          output joined row
+```
+
+Trong project:
+
+```txt
+- Customers đóng vai trò outer relation.
+- Orders đóng vai trò inner relation.
+- Dữ liệu được xử lý theo block/page.
+- Mỗi lần truyền block được tính như một packet.
+- Network latency được cộng vào chi phí truyền dữ liệu.
+```
+
+Block Size ảnh hưởng trực tiếp đến số packet:
+
+```txt
+Block Size nhỏ  -> nhiều packet hơn -> network time cao hơn
+Block Size lớn  -> ít packet hơn    -> network time thấp hơn
+```
+
+## 11. Mô hình chi phí
+
+Simulator sử dụng công thức mô phỏng tổng quát:
+
+```txt
+Total Execution Time = Local Processing Time + Network Transfer Time
+```
+
+Trong đó:
+
+```txt
+Network Transfer Time = Number of Packets × Latency per Packet
+```
+
+Project cho phép thay đổi latency trong khoảng:
+
+```txt
+1ms, 5ms, 10ms, 25ms, 50ms, 75ms, 100ms, 150ms, 200ms
+```
+
+Các block size được hỗ trợ:
+
+```txt
+1, 5, 10, 25, 50, 100
+```
+
+## 12. Biểu đồ phân tích
+
+Tab chart hiển thị biểu đồ:
+
+```txt
+Execution Time vs Network Latency
+```
+
+Biểu đồ dùng để phân tích:
+
+```txt
+- Khi latency tăng, execution time tăng.
+- Khi block size tăng, số packet thường giảm.
+- Block size có ảnh hưởng trực tiếp đến network transfer time.
+- Điểm chạy thực tế sau mỗi lần simulation có thể được hiển thị trên biểu đồ.
+```
+
+## 13. Mô phỏng lỗi node
+
+Project có hỗ trợ một số kịch bản lỗi node, ví dụ:
+
+```txt
+- Node giữa bị lỗi
+- Lỗi dây chuyền
+- Lỗi khi gather kết quả
+```
+
+Khi một node bị lỗi:
+
+```txt
+- Node được đánh dấu FAILED.
+- Dữ liệu trên node đó được xem như bị mất.
+- Kết quả join có thể trở thành partial result.
+- Hệ thống ghi log lỗi và cập nhật thống kê dữ liệu bị ảnh hưởng.
+```
+
+Chức năng này giúp minh họa một vấn đề quan trọng trong cơ sở dữ liệu phân tán: khi dữ liệu nằm trên nhiều site, lỗi tại một node có thể ảnh hưởng đến tính đầy đủ của kết quả truy vấn.
+
+## 14. Kiểm tra chất lượng code
+
+Chạy ESLint:
+
+```bash
+npm run lint
+```
+
+Nếu kết quả chỉ có warning và không có error, project vẫn có thể chạy được.
+
+Ví dụ warning thường gặp:
+
+```txt
+React Hook useEffect has a missing dependency
+```
+
+Warning này không làm project dừng chạy, nhưng có thể được cải thiện bằng cách thêm dependency phù hợp hoặc sử dụng `useCallback`.
+
+Ngoài ra, thông báo sau có thể xuất hiện:
+
+```txt
+[baseline-browser-mapping] The data in this module is over two months old
+```
+
+Đây chỉ là thông báo phụ từ dependency, không phải lỗi nghiêm trọng.
+
+Có thể cập nhật bằng lệnh:
+
+```bash
+npm i baseline-browser-mapping@latest -D
+```
+
+## 15. Hướng phát triển tương lai
+
+Project có thể được mở rộng theo các hướng sau:
+
+```txt
+- So sánh DNJL với Hash Join hoặc Sort-Merge Join.
+- Bổ sung backend riêng cho từng node.
+- Lưu dữ liệu bằng JSON file, SQLite hoặc MySQL.
+- Mô phỏng bandwidth, packet size và packet loss.
+- Bổ sung replication và automatic failover.
+- Xuất kết quả benchmark ra CSV hoặc PDF.
+- Triển khai bằng Docker để mô phỏng nhiều node rõ ràng hơn.
+```
