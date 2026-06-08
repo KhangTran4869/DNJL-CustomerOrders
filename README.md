@@ -5,7 +5,9 @@ Distributed Nested Loop Join Simulator là một project mô phỏng thuật to�
 ## 1. Giới thiệu
 
 Name: Trần Hoàng Gia Khang
+
 MSSV: N23DCCN028
+
 Project Title: #13 Distributed Nested Loop Join Simulator: “Customer–Orders”
 
 Trong cơ sở dữ liệu phân tán, dữ liệu thường không nằm tập trung tại một máy duy nhất mà được phân bố trên nhiều site/node khác nhau. Khi thực hiện phép join giữa các bảng nằm trên nhiều node, hệ thống cần quan tâm không chỉ đến chi phí xử lý cục bộ mà còn đến chi phí truyền dữ liệu qua mạng.
