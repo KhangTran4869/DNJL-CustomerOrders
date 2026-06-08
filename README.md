@@ -19,19 +19,6 @@ Customers JOIN Orders
 ON Customers.customer_id = Orders.customer_id
 ```
 
-Project này mô phỏng phép join giữa hai quan hệ:
-
-```txt
-Customers(customer_id, name, city)
-Orders(order_id, customer_id, product, amount)
-```
-
-Điều kiện join:
-
-```txt
-Customers.customer_id = Orders.customer_id
-```
-
 Mục tiêu chính của simulator là phân tích ảnh hưởng của:
 
 ```txt
