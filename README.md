@@ -1,4 +1,4 @@
-# Distributed Nested Loop Join Simulator
+# Distributed Nested Loop Join 
 
 Distributed Nested Loop Join Simulator là một project mô phỏng thuật toán **Distributed Nested Loop Join (DNJL)** trên hai bảng dữ liệu mẫu `Customers` và `Orders`. Ứng dụng được xây dựng bằng **Next.js** và **React**, dùng để minh họa cách dữ liệu được phân tán lên nhiều node, cách thuật toán join xử lý theo block, cách network latency ảnh hưởng đến thời gian thực thi, và cách lỗi node ảnh hưởng đến kết quả truy vấn phân tán.
 
@@ -8,7 +8,7 @@ Name: Trần Hoàng Gia Khang
 
 MSSV: N23DCCN028
 
-Project Title: #13 Distributed Nested Loop Join Simulator: “Customer–Orders”
+Project Title: #13 Distributed Nested Loop Join : “Customer–Orders”
 
 Trong cơ sở dữ liệu phân tán, dữ liệu thường không nằm tập trung tại một máy duy nhất mà được phân bố trên nhiều site/node khác nhau. Khi thực hiện phép join giữa các bảng nằm trên nhiều node, hệ thống cần quan tâm không chỉ đến chi phí xử lý cục bộ mà còn đến chi phí truyền dữ liệu qua mạng.Trong project, Customers được phân mảnh lên nhiều customer nodes, còn Orders được đặt tại Order Site B. Query Coordinator sẽ điều phối quá trình truyền các order block từ Site B đến từng customer node để thực hiện join cục bộ.
 
