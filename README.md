@@ -12,19 +12,6 @@ Project Title: #13 Distributed Nested Loop Join Simulator: “Customer–Orders�
 
 Trong cơ sở dữ liệu phân tán, dữ liệu thường không nằm tập trung tại một máy duy nhất mà được phân bố trên nhiều site/node khác nhau. Khi thực hiện phép join giữa các bảng nằm trên nhiều node, hệ thống cần quan tâm không chỉ đến chi phí xử lý cục bộ mà còn đến chi phí truyền dữ liệu qua mạng.
 
-Project này mô phỏng phép join giữa hai quan hệ:
-
-```txt
-Customers(customer_id, name, city)
-Orders(order_id, customer_id, product, amount)
-```
-
-Điều kiện join:
-
-```txt
-Customers.customer_id = Orders.customer_id
-```
-
 Mục tiêu chính của simulator là phân tích ảnh hưởng của:
 
 ```txt
