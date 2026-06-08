@@ -10,6 +10,13 @@ Distributed Nested Loop Join Simulator là một project mô phỏng thuật to�
 
 Trong cơ sở dữ liệu phân tán, dữ liệu thường không nằm tập trung tại một máy duy nhất mà được phân bố trên nhiều site/node khác nhau. Khi thực hiện phép join giữa các bảng nằm trên nhiều node, hệ thống cần quan tâm không chỉ đến chi phí xử lý cục bộ mà còn đến chi phí truyền dữ liệu qua mạng.
 
+Truy vấn global trong hệ thống là:
+
+```txt
+Customers JOIN Orders
+ON Customers.customer_id = Orders.customer_id
+```
+
 Project này mô phỏng phép join giữa hai quan hệ:
 
 ```txt
@@ -127,7 +134,7 @@ npm -v
 Clone project từ GitHub:
 
 ```bash
-git clone <your-repository-url>
+git clone https://github.com/KhangTran4869/DNJL-CustomerOrders.git
 cd DNJL
 ```
 

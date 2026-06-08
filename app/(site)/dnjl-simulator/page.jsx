@@ -163,7 +163,7 @@ export default function SimulatorPage() {
     setNodeStates(nodes.map(n => ({ ...n })));
 
     // ─ Phase 1: distribute ──────────────────────────────────
-    addLog("PHÂN TÁN DỮ LIỆU THEO NODE ", "#f7b685ff");
+    addLog("PHÂN TÁN DỮ LIỆU THEO NODE ", "#ffab6bff");
     for (let i = 0; i < nodes.length; i++) {
       const color = NODE_COLORS[i % NODE_COLORS.length];
       addLog(`Node ${i}: ${nodes[i].customers.length} customers, ${nodes[i].orders.length} orders`, color);
@@ -178,7 +178,7 @@ export default function SimulatorPage() {
     // ─ Phase 2: Page-Oriented NLJ ───────────────────────────
     // Mỗi worker: outer = phân mảnh Customers của mình (từ Site A)
     //             inner = kéo toàn bộ Orders từ Site B theo block
-    addLog(`═══ PHASE 2: Page-Oriented NLJ  [block=${blockSize}, latency=${latencyMs}ms] ═══`, "#b38a6a");
+    addLog(`Page-Oriented NLJ  [block=${blockSize}, latency=${latencyMs}ms] ═══`, "#ffab6bff");
     await sleep(speed * 0.5);
     if (abortRef.current) { setRunning(false); return; }
 
